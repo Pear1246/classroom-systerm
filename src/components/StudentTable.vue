@@ -11,7 +11,7 @@
 
       <tbody>
         <tr v-for="student in paginatedStudents" :key="student.id">
-          <td>{{ student.id }}</td>
+          <td>{{ student.studentNo || "—" }}</td>
 
           <td>{{ student.name }}</td>
 

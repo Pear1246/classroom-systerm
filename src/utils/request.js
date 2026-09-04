@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const request = axios.create({
-  baseURL: "/api",
+  baseURL: import.meta.env.VITE_API_BASE_URL || "/api",
   timeout: 10000,
 });
 
@@ -14,7 +14,11 @@ request.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`;
     }
 
-    if (config.method === "post") {
+    const method = (config.method || "").toLowerCase();
+    const isFormData =
+      typeof FormData !== "undefined" && config.data instanceof FormData;
+
+    if (["post", "put", "patch"].includes(method) && !isFormData) {
       config.headers["Content-Type"] = "application/json";
     }
 
@@ -30,16 +34,17 @@ request.interceptors.response.use(
   (response) => {
     const res = response.data;
 
-    // 兼容后端返回：{ code: 200, message: "success", data: ... }
     if (res && typeof res === "object" && "code" in res) {
       if (res.code === 200) {
         return res.data ?? res;
       }
 
-      return Promise.reject(new Error(res.message || "接口请求失败"));
+      const errorMessage =
+        typeof res.data === "string" ? res.data : res.message || "接口请求失败";
+
+      return Promise.reject(new Error(errorMessage));
     }
 
-    // 兼容后端直接返回数据
     return res;
   },
   (error) => {
