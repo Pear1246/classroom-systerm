@@ -218,7 +218,14 @@
             <p>管理员可以修改课程信息以及更换授课教师</p>
           </div>
 
-          <button class="close-btn" @click="closeEditDialog">×</button>
+          <button
+            class="close-btn"
+            type="button"
+            aria-label="关闭"
+            @click="closeEditDialog"
+          >
+            <AppIcon name="close" />
+          </button>
         </div>
 
         <div class="form-grid">

@@ -53,6 +53,41 @@ export function sortSemesters(semesters = []) {
   });
 }
 
+export function getSemesterRelation(semester, date = new Date()) {
+  const semesterValue = getSemesterSortValue(semester);
+  const currentValue = getSemesterSortValue(getCurrentSemester(date));
+
+  if (semesterValue === -1 || currentValue === -1) {
+    return "UNKNOWN";
+  }
+
+  if (semesterValue > currentValue) {
+    return "FUTURE";
+  }
+
+  if (semesterValue < currentValue) {
+    return "PAST";
+  }
+
+  return "CURRENT";
+}
+
+export function getSemesterLifecycleStatus(semester, date = new Date()) {
+  const relation = getSemesterRelation(semester, date);
+
+  if (relation === "FUTURE") return "UPCOMING";
+  if (relation === "PAST") return "ENDED";
+  return "ACTIVE";
+}
+
+export function isFutureSemester(semester, date = new Date()) {
+  return getSemesterRelation(semester, date) === "FUTURE";
+}
+
+export function isPastSemester(semester, date = new Date()) {
+  return getSemesterRelation(semester, date) === "PAST";
+}
+
 export function getNextSemester(semester) {
   const parsed = parseSemester(semester);
 

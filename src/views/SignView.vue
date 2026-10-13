@@ -387,7 +387,7 @@ export default {
         const activityId = Number(res?.id);
 
         if (!activityId) {
-          throw new Error("后端未返回签到活动 ID");
+          throw new Error("签到发起失败，请稍后重试");
         }
 
         this.saveSignActivity(activityId);
@@ -433,7 +433,7 @@ export default {
         console.log("二维码大小：", blob?.size);
 
         if (!(blob instanceof Blob)) {
-          throw new Error("二维码接口未返回有效图片");
+          throw new Error("签到二维码加载失败，请稍后重试");
         }
 
         this.clearQrUrl();
@@ -493,15 +493,19 @@ export default {
         return "--";
       }
 
-      const text = String(value);
+      const date = new Date(value);
 
-      const match = text.match(/(\d{2}:\d{2}:\d{2})/);
-
-      if (match) {
-        return match[1];
+      if (Number.isNaN(date.getTime())) {
+        return String(value);
       }
 
-      return text;
+      return new Intl.DateTimeFormat("zh-CN", {
+        timeZone: "Asia/Shanghai",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hourCycle: "h23",
+      }).format(date);
     },
 
     // 结束签到

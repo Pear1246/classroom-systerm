@@ -1,32 +1,46 @@
 <template>
   <RouterView v-if="isStandalonePage" />
 
+  <div v-else-if="isFocusMode" class="focus-layout">
+    <RouterView />
+  </div>
+
   <div v-else class="layout">
     <div class="course-panel">
       <div class="top-row">
         <button class="back-btn" @click="goCourseHome">
           <AppIcon name="arrow-left" />
 
-          <span> 返回课程首页 </span>
+          <span> 退出课程空间 </span>
         </button>
 
         <div class="teacher-area">
-          <span>
+          <span class="teacher-name">
             {{ teacherName }}
           </span>
 
-          <span class="logout-btn" @click="logout">
-            <AppIcon name="logout" />
-
-            <span> 退出登录 </span>
-          </span>
+          <button
+            v-if="isCourseActive"
+            type="button"
+            class="end-course-btn"
+            @click="openEndCourseDialog"
+          >
+            <AppIcon name="ended" />
+            <span>结束课程</span>
+          </button>
         </div>
       </div>
 
       <div class="course-info">
-        <h1>
-          {{ currentCourseTitle }}
-        </h1>
+        <div class="course-title-row">
+          <h1>
+            {{ currentCourseTitle }}
+          </h1>
+
+          <span class="course-status-badge" :class="currentCourseStatusClass">
+            {{ currentCourseStatusText }}
+          </span>
+        </div>
 
         <p>
           {{ currentClassName }}
@@ -46,32 +60,134 @@
       </div>
     </div>
 
-    <!-- 课程空间导航 -->
+    <!-- 课程空间导航：根据课程生命周期只展示当前阶段可用模块 -->
     <div class="nav-bar">
-      <RouterLink :to="`${courseBasePath}/sign`" class="nav-item">
+      <RouterLink
+        v-if="courseAccess.showSign"
+        :to="`${courseBasePath}/sign`"
+        class="nav-item"
+      >
         课堂签到
       </RouterLink>
 
-      <RouterLink :to="`${courseBasePath}/roll`" class="nav-item">
+      <RouterLink
+        v-if="courseAccess.showRoll"
+        :to="`${courseBasePath}/roll`"
+        class="nav-item"
+      >
         随机点名
       </RouterLink>
 
-      <RouterLink :to="`${courseBasePath}/performance`" class="nav-item">
+      <RouterLink
+        v-if="courseAccess.showPerformance"
+        :to="`${courseBasePath}/performance`"
+        class="nav-item"
+      >
         课堂表现
       </RouterLink>
 
-      <RouterLink :to="`${courseBasePath}/students`" class="nav-item">
+      <RouterLink
+        v-if="courseAccess.showMaterials"
+        :to="`${courseBasePath}/materials`"
+        class="nav-item"
+        :class="{ 'router-link-active': isKnowledgeBaseRoute }"
+      >
+        课程知识库
+      </RouterLink>
+
+      <RouterLink
+        v-if="courseAccess.showQuestions"
+        :to="`${courseBasePath}/questions`"
+        class="nav-item"
+        :class="{ 'router-link-active': isQuestionBankRoute }"
+      >
+        课程题库
+      </RouterLink>
+
+      <RouterLink
+        v-if="courseAccess.showStudents"
+        :to="`${courseBasePath}/students`"
+        class="nav-item"
+      >
         学生名单
       </RouterLink>
 
-      <RouterLink :to="`${courseBasePath}/sign-records`" class="nav-item">
+      <RouterLink
+        v-if="courseAccess.showSignRecords"
+        :to="`${courseBasePath}/sign-records`"
+        class="nav-item"
+      >
         签到记录
       </RouterLink>
+
+      <RouterLink
+        v-if="courseAccess.showSummary"
+        :to="`${courseBasePath}/summary`"
+        class="nav-item"
+      >
+        课程总结
+      </RouterLink>
+    </div>
+
+    <div
+      v-if="!isCourseActive"
+      class="course-state-notice"
+      :class="currentCourseStatusClass"
+    >
+      <span class="course-state-notice-icon">
+        <AppIcon :name="isCourseUpcoming ? 'time' : 'ended'" />
+      </span>
+
+      <div>
+        <strong>{{ courseStateNoticeTitle }}</strong>
+        <span>{{ courseStateNoticeText }}</span>
+      </div>
     </div>
 
     <div class="page-content">
       <RouterView />
     </div>
+  </div>
+
+  <div
+    v-if="showEndCourseDialog"
+    class="course-end-mask"
+    @click.self="closeEndCourseDialog"
+  >
+    <section class="course-end-dialog" role="dialog" aria-modal="true">
+      <div class="course-end-icon">
+        <AppIcon name="ended" />
+      </div>
+
+      <h2>确认结束课程？</h2>
+      <p class="course-end-target">
+        {{ currentCourseTitle }} · {{ currentClassName }}
+      </p>
+
+      <div class="course-end-note">
+        <p>结课后，该课程将标记为“已结课”，历史教学数据会继续保留。</p>
+        <p>请确认本学期教学活动已经结束。当前不提供恢复为进行中状态的入口。</p>
+      </div>
+
+      <div class="course-end-actions">
+        <button
+          type="button"
+          class="course-end-cancel"
+          @click="closeEndCourseDialog"
+        >
+          取消
+        </button>
+
+        <button
+          type="button"
+          class="course-end-confirm"
+          :disabled="endingCourse"
+          @click="confirmEndCourse"
+        >
+          {{ endingCourse ? "处理中..." : "确认结束课程" }}
+        </button>
+      </div>
+    </section>
   </div>
 </template>
 
@@ -79,12 +195,26 @@
 import { useCourseStore } from "./store/courseStore";
 import { useClassStore } from "./store/classStore";
 import { useTeacherStore } from "./store/teacherStore";
+import { useCourseLifecycleStore } from "./store/courseLifecycleStore";
+import { useExerciseStore } from "./store/exerciseStore";
+import {
+  getCourseAccessPolicy,
+  getCourseDefaultPath,
+  isCourseSectionAllowed,
+} from "./utils/coursePermissions";
 
 import AppIcon from "./components/AppIcon.vue";
 
 export default {
   components: {
     AppIcon,
+  },
+
+  data() {
+    return {
+      showEndCourseDialog: false,
+      endingCourse: false,
+    };
   },
 
   computed: {
@@ -98,6 +228,14 @@ export default {
 
     teacherStore() {
       return useTeacherStore();
+    },
+
+    courseLifecycleStore() {
+      return useCourseLifecycleStore();
+    },
+
+    exerciseStore() {
+      return useExerciseStore();
     },
 
     isLoginPage() {
@@ -116,24 +254,86 @@ export default {
       return this.isLoginPage || this.isCourseHomePage || this.isAdminPage;
     },
 
+    isFocusMode() {
+      return this.$route.meta.focusMode === true;
+    },
+
     teachingClassId() {
-      return Number(this.$route.params.teachingClassId);
+      return String(this.$route.params.teachingClassId || "");
     },
 
     currentTeachingClass() {
-      if (this.courseStore.currentTeachingClass) {
-        return this.courseStore.currentTeachingClass;
+      const current = this.courseStore.currentTeachingClass;
+
+      if (current && String(current.id) === this.teachingClassId) {
+        return current;
       }
 
       return (
         this.courseStore.teachingClasses.find(
-          (item) => Number(item.id) === this.teachingClassId
+          (item) => String(item.id) === this.teachingClassId
         ) || null
       );
     },
 
+    currentCourseStatus() {
+      if (!this.currentTeachingClass) {
+        return "ACTIVE";
+      }
+
+      return this.courseLifecycleStore.getStatus(this.currentTeachingClass);
+    },
+
+    currentCourseStatusText() {
+      if (this.currentCourseStatus === "UPCOMING") return "未开始";
+      if (this.currentCourseStatus === "ENDED") return "已结课";
+      return "进行中";
+    },
+
+    currentCourseStatusClass() {
+      if (this.currentCourseStatus === "UPCOMING") return "upcoming";
+      if (this.currentCourseStatus === "ENDED") return "ended";
+      return "active";
+    },
+
+    courseAccess() {
+      return getCourseAccessPolicy(this.currentCourseStatus);
+    },
+
+    isCourseUpcoming() {
+      return this.currentCourseStatus === "UPCOMING";
+    },
+
+    isCourseActive() {
+      return this.currentCourseStatus === "ACTIVE";
+    },
+
+    isCourseEnded() {
+      return this.currentCourseStatus === "ENDED";
+    },
+
+    courseStateNoticeTitle() {
+      return this.isCourseUpcoming ? "课程尚未开始" : "课程已结课";
+    },
+
+    courseStateNoticeText() {
+      if (this.isCourseUpcoming) {
+        return "你可以提前准备课程资料、题库和练习草稿，课程开始后即可开展课堂教学。";
+      }
+
+      return "你仍可以查看历史数据、完成练习批改，并继续整理课程资料和题目。";
+    },
+
     courseBasePath() {
       return `/course/${this.teachingClassId}`;
+    },
+
+    isKnowledgeBaseRoute() {
+      return this.$route.path.startsWith(`${this.courseBasePath}/materials`);
+    },
+
+    isQuestionBankRoute() {
+      return this.$route.path.startsWith(`${this.courseBasePath}/questions`);
     },
 
     currentCourseTitle() {
@@ -243,6 +443,14 @@ export default {
     "$route.params.teachingClassId"() {
       this.restoreTeachingClassFromRoute();
     },
+
+    "$route.fullPath"() {
+      this.$nextTick(() => this.ensureCurrentRouteAllowed());
+    },
+
+    currentCourseStatus() {
+      this.$nextTick(() => this.ensureCurrentRouteAllowed());
+    },
   },
 
   mounted() {
@@ -271,27 +479,113 @@ export default {
 
       if (target) {
         this.classStore.switchClass(target.classId || target.id);
+        this.$nextTick(() => this.ensureCurrentRouteAllowed());
+      }
+    },
+
+    getCurrentCourseSection() {
+      const prefix = `${this.courseBasePath}/`;
+
+      if (!this.$route.path.startsWith(prefix)) {
+        return "";
+      }
+
+      return this.$route.path.slice(prefix.length).split("/")[0] || "";
+    },
+
+    ensureCurrentRouteAllowed() {
+      if (!this.currentTeachingClass || !this.teachingClassId) {
+        return;
+      }
+
+      const section = this.getCurrentCourseSection();
+
+      if (!section) {
+        return;
+      }
+
+      if (!isCourseSectionAllowed(this.currentCourseStatus, section)) {
+        const target = getCourseDefaultPath(
+          this.teachingClassId,
+          this.currentCourseStatus
+        );
+
+        if (this.$route.path !== target) {
+          this.$router.replace(target);
+        }
+        return;
+      }
+
+      const path = this.$route.path;
+
+      if (this.isCourseEnded) {
+        const noteEditMatch = path.match(
+          new RegExp(`^${this.courseBasePath}/materials/note/([^/]+)/edit$`)
+        );
+
+        if (noteEditMatch) {
+          this.$router.replace(
+            `${this.courseBasePath}/materials/note/${noteEditMatch[1]}`
+          );
+          return;
+        }
+
+        if (path === `${this.courseBasePath}/materials/note/new`) {
+          this.$router.replace(`${this.courseBasePath}/materials`);
+          return;
+        }
+
+        if (path === `${this.courseBasePath}/questions/exercises/new`) {
+          this.$router.replace(`${this.courseBasePath}/questions`);
+          return;
+        }
+      }
+
+      if (
+        this.isCourseUpcoming &&
+        path.includes(`${this.courseBasePath}/questions/exercises/`) &&
+        path.includes("/results")
+      ) {
+        this.$router.replace(`${this.courseBasePath}/questions`);
+      }
+    },
+
+    openEndCourseDialog() {
+      if (!this.currentTeachingClass || !this.isCourseActive) {
+        return;
+      }
+
+      this.showEndCourseDialog = true;
+    },
+
+    closeEndCourseDialog() {
+      if (this.endingCourse) {
+        return;
+      }
+
+      this.showEndCourseDialog = false;
+    },
+
+    async confirmEndCourse() {
+      if (!this.currentTeachingClass || !this.isCourseActive) {
+        this.showEndCourseDialog = false;
+        return;
+      }
+
+      this.endingCourse = true;
+
+      try {
+        this.courseLifecycleStore.endCourse(this.currentTeachingClass.id);
+        this.exerciseStore.endActiveExercises(this.currentTeachingClass.id);
+        this.showEndCourseDialog = false;
+        this.$nextTick(() => this.ensureCurrentRouteAllowed());
+      } finally {
+        this.endingCourse = false;
       }
     },
 
     goCourseHome() {
       this.$router.push("/courses");
-    },
-
-    logout() {
-      this.teacherStore.logout();
-
-      localStorage.removeItem("isLogin");
-
-      localStorage.removeItem("token");
-
-      localStorage.removeItem("teacherId");
-
-      localStorage.removeItem("teacherName");
-
-      localStorage.removeItem("loginExpireTime");
-
-      this.$router.push("/login");
     },
   },
 };
@@ -314,12 +608,17 @@ body {
   margin: 0;
 }
 
-.layout {
+.layout,
+.focus-layout {
   min-height: 100vh;
 
   box-sizing: border-box;
 
   padding: 24px;
+}
+
+.focus-layout {
+  background: #f5f6f8;
 }
 
 .course-panel {
@@ -379,28 +678,26 @@ body {
   font-size: 14px;
 }
 
-.logout-btn {
-  display: inline-flex;
+.teacher-name {
+  padding: 8px 12px;
 
-  align-items: center;
-  justify-content: center;
+  background: #f3f4f6;
 
-  gap: 8px;
+  border-radius: 999px;
 
-  padding: 9px 14px;
-
-  background: #111827;
-  color: #ffffff;
-
-  border-radius: 10px;
-
-  cursor: pointer;
-
-  user-select: none;
+  font-weight: 600;
 }
 
 .course-info {
   text-align: center;
+}
+
+.course-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .course-info h1 {
@@ -417,6 +714,169 @@ body {
   color: #6b7280;
 
   font-size: 15px;
+}
+
+.course-status-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 13px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 700;
+  box-sizing: border-box;
+}
+
+.course-status-badge.upcoming {
+  border-color: #f5d9a8;
+  background: #fff9ed;
+  color: #a15c08;
+}
+
+.course-status-badge.active {
+  border-color: #cfe9d7;
+  background: #f0f9f3;
+  color: #287a45;
+}
+
+.course-status-badge.ended {
+  border-color: #cddff8;
+  background: #f2f7fd;
+  color: #356aaf;
+}
+
+.end-course-btn {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #4b5563;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 650;
+  transition: 0.18s ease;
+}
+
+.end-course-btn:hover {
+  border-color: #fecaca;
+  background: #fff7f7;
+  color: #b42335;
+}
+
+.course-end-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 2400;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.34);
+  backdrop-filter: blur(2px);
+}
+
+.course-end-dialog {
+  width: min(500px, 100%);
+  box-sizing: border-box;
+  padding: 28px;
+  border: 1px solid #e5e7eb;
+  border-radius: 22px;
+  background: #ffffff;
+  box-shadow: 0 28px 80px rgba(15, 23, 42, 0.18);
+  text-align: left;
+}
+
+.course-end-icon {
+  width: 48px;
+  height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 15px;
+  background: #fff3f3;
+  color: #b42335;
+  font-size: 23px;
+}
+
+.course-end-dialog h2 {
+  margin: 18px 0 0;
+  color: #111827;
+  font-size: 22px;
+}
+
+.course-end-target {
+  margin: 8px 0 0;
+  color: #6b7280;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.course-end-note {
+  margin-top: 20px;
+  padding: 15px 16px;
+  border: 1px solid #eceff3;
+  border-radius: 14px;
+  background: #fafafa;
+  color: #4b5563;
+  font-size: 14px;
+  line-height: 1.75;
+}
+
+.course-end-note p {
+  margin: 0;
+}
+
+.course-end-note p + p {
+  margin-top: 6px;
+}
+
+.course-end-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.course-end-cancel,
+.course-end-confirm {
+  min-height: 42px;
+  padding: 0 18px;
+  border-radius: 12px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.course-end-cancel {
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  color: #374151;
+}
+
+.course-end-cancel:hover {
+  background: #f7f7f8;
+}
+
+.course-end-confirm {
+  border: 1px solid #b42335;
+  background: #b42335;
+  color: #ffffff;
+}
+
+.course-end-confirm:hover {
+  background: #9f1f31;
+}
+
+.course-end-confirm:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .divider {
@@ -463,6 +923,56 @@ body {
 .nav-item.router-link-active {
   background: #111827;
   color: #ffffff;
+}
+
+.course-state-notice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 18px;
+  padding: 14px 18px;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  background: #ffffff;
+  color: #4b5563;
+}
+
+.course-state-notice.upcoming {
+  border-color: #f3dfb8;
+  background: #fffaf1;
+}
+
+.course-state-notice.ended {
+  border-color: #d7e4f5;
+  background: #f6f9fd;
+}
+
+.course-state-notice-icon {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 34px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.78);
+  font-size: 18px;
+}
+
+.course-state-notice > div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.course-state-notice strong {
+  color: #1f2937;
+  font-size: 15px;
+}
+
+.course-state-notice span:not(.course-state-notice-icon) {
+  font-size: 14px;
+  line-height: 1.6;
 }
 
 .page-content {

@@ -98,7 +98,9 @@
           @click="enterCourse(item)"
         >
           <div class="card-top">
-            <span class="tag">课程</span>
+            <span class="course-state-tag" :class="courseStatusClass(item)">
+              {{ courseStatusText(item) }}
+            </span>
 
             <button class="pin-btn active" @click.stop="togglePinned(item)">
               <AppIcon name="star-fill" />
@@ -117,7 +119,7 @@
             <span>{{ item.teacherName || teacherName }}</span>
           </div>
 
-          <div class="card-actions">
+          <div v-if="courseStatus(item) !== 'ENDED'" class="card-actions">
             <button class="text-btn" @click.stop="openEditModal(item)">
               <AppIcon name="edit" />
               <span>编辑</span>
@@ -187,6 +189,12 @@
             <div class="row-info">
               <div class="row-title">
                 <h3>{{ item.courseName }}</h3>
+                <span
+                  class="course-state-tag compact"
+                  :class="courseStatusClass(item)"
+                >
+                  {{ courseStatusText(item) }}
+                </span>
               </div>
 
               <p>{{ item.className }}</p>
@@ -208,12 +216,20 @@
                 <span>{{ item.isPinned ? "已置顶" : "置顶" }}</span>
               </button>
 
-              <button class="edit-btn" @click.stop="openEditModal(item)">
+              <button
+                v-if="courseStatus(item) !== 'ENDED'"
+                class="edit-btn"
+                @click.stop="openEditModal(item)"
+              >
                 <AppIcon name="edit" />
                 <span>编辑</span>
               </button>
 
-              <button class="delete-btn" @click.stop="openDeleteDialog(item)">
+              <button
+                v-if="courseStatus(item) !== 'ENDED'"
+                class="delete-btn"
+                @click.stop="openDeleteDialog(item)"
+              >
                 <AppIcon name="delete" />
                 <span>删除</span>
               </button>
@@ -237,15 +253,25 @@
         <div class="modal-header">
           <div>
             <h2>新增课程空间</h2>
-            <p>创建后课程会写入后台数据库，管理员端也可以查看</p>
+            <p>创建后可在教师端与管理员端统一管理</p>
           </div>
 
-          <button class="close-btn" @click="closeAddModal">×</button>
+          <button
+            class="close-btn"
+            type="button"
+            aria-label="关闭"
+            @click="closeAddModal"
+          >
+            <AppIcon name="close" />
+          </button>
         </div>
 
         <form class="course-form" @submit.prevent="submitAddCourse">
           <div class="form-item">
-            <label>课程名称 *</label>
+            <label>
+              课程名称
+              <span class="required-mark">*</span>
+            </label>
 
             <input
               v-model="addForm.courseName"
@@ -255,7 +281,10 @@
           </div>
 
           <div class="form-item">
-            <label>班级名称 *</label>
+            <label>
+              班级名称
+              <span class="required-mark">*</span>
+            </label>
 
             <input
               v-model="addForm.className"
@@ -271,6 +300,10 @@
               v-model="addForm.semester"
               :options="createSemesterOptions"
             />
+
+            <p v-if="isAddSemesterFuture" class="semester-hint">
+              该课程属于未来学期，创建后将显示为“未开始”。
+            </p>
           </div>
 
           <div class="form-item">
@@ -304,12 +337,22 @@
             <p>修改当前课程的基本信息</p>
           </div>
 
-          <button class="close-btn" @click="closeEditModal">×</button>
+          <button
+            class="close-btn"
+            type="button"
+            aria-label="关闭"
+            @click="closeEditModal"
+          >
+            <AppIcon name="close" />
+          </button>
         </div>
 
         <form class="course-form" @submit.prevent="submitEditCourse">
           <div class="form-item">
-            <label>课程名称 *</label>
+            <label>
+              课程名称
+              <span class="required-mark">*</span>
+            </label>
 
             <input
               v-model="editForm.courseName"
@@ -319,7 +362,10 @@
           </div>
 
           <div class="form-item">
-            <label>班级名称 *</label>
+            <label>
+              班级名称
+              <span class="required-mark">*</span>
+            </label>
 
             <input
               v-model="editForm.className"
@@ -401,6 +447,7 @@ import AppSelect from "../components/AppSelect.vue";
 import { useCourseStore } from "../store/courseStore";
 import { useClassStore } from "../store/classStore";
 import { useTeacherStore } from "../store/teacherStore";
+import { useCourseLifecycleStore } from "../store/courseLifecycleStore";
 
 import {
   getCurrentSemester,
@@ -408,7 +455,10 @@ import {
   mergeSemesterOptions,
   sortSemesters,
   getClosestSemester,
+  isFutureSemester,
+  isPastSemester,
 } from "../utils/semester";
+import { getCourseDefaultPath } from "../utils/coursePermissions";
 
 import {
   createTeacherClass,
@@ -469,6 +519,10 @@ export default {
       return useTeacherStore();
     },
 
+    courseLifecycleStore() {
+      return useCourseLifecycleStore();
+    },
+
     teacherName() {
       return this.teacherStore.teacher?.name || "教师";
     },
@@ -488,13 +542,19 @@ export default {
     },
 
     semesterList() {
-      return sortSemesters(
-        this.allCourses.map((item) => item.semester).filter(Boolean)
-      );
+      const semesters = this.allCourses
+        .map((item) => item.semester)
+        .filter(Boolean);
+
+      return sortSemesters([...new Set(semesters)]);
     },
 
     createSemesterOptions() {
       return getSemesterOptions(5);
+    },
+
+    isAddSemesterFuture() {
+      return isFutureSemester(this.addForm.semester);
     },
 
     editSemesterOptions() {
@@ -618,10 +678,32 @@ export default {
       this.expandedSemesters = next;
     },
 
+    courseStatus(item) {
+      return this.courseLifecycleStore.getStatus(item);
+    },
+
+    courseStatusText(item) {
+      const status = this.courseStatus(item);
+
+      if (status === "UPCOMING") return "未开始";
+      if (status === "ENDED") return "已结课";
+      return "进行中";
+    },
+
+    courseStatusClass(item) {
+      const status = this.courseStatus(item);
+
+      if (status === "UPCOMING") return "upcoming";
+      if (status === "ENDED") return "ended";
+      return "active";
+    },
+
     enterCourse(item) {
       this.courseStore.switchTeachingClass(item.id);
       this.classStore.switchClass(item.classId || item.id);
-      this.$router.push(`/course/${item.id}/roll`);
+
+      const status = this.courseLifecycleStore.getStatus(item);
+      this.$router.push(getCourseDefaultPath(item.id, status));
     },
 
     toggleSemester(semester) {
@@ -669,6 +751,16 @@ export default {
         return;
       }
 
+      if (!this.addForm.semester.trim()) {
+        alert("请选择学期");
+        return;
+      }
+
+      if (isPastSemester(this.addForm.semester)) {
+        alert("不能创建已结束学期的课程空间，请选择当前或未来学期");
+        return;
+      }
+
       this.creating = true;
 
       try {
@@ -694,6 +786,10 @@ export default {
     },
 
     openEditModal(item) {
+      if (this.courseStatus(item) === "ENDED") {
+        return;
+      }
+
       this.editTarget = item;
 
       this.editForm = {
@@ -762,6 +858,10 @@ export default {
     },
 
     openDeleteDialog(item) {
+      if (this.courseStatus(item) === "ENDED") {
+        return;
+      }
+
       this.deleteTarget = item;
     },
 
@@ -1066,6 +1166,43 @@ export default {
   font-size: 13px;
 }
 
+.course-state-tag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  box-sizing: border-box;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.course-state-tag.compact {
+  min-height: 26px;
+  padding: 0 9px;
+  font-size: 12px;
+}
+
+.course-state-tag.upcoming {
+  border-color: #f5d9a8;
+  background: #fff9ed;
+  color: #a15c08;
+}
+
+.course-state-tag.active {
+  border-color: #cfe9d7;
+  background: #f0f9f3;
+  color: #287a45;
+}
+
+.course-state-tag.ended {
+  border-color: #cddff8;
+  background: #f2f7fd;
+  color: #356aaf;
+}
+
 .pin-btn,
 .pin-row-btn {
   border: none;
@@ -1239,9 +1376,13 @@ export default {
 }
 
 .row-info h3 {
-  margin: 0 0 8px;
+  margin: 0;
   font-size: 21px;
   color: #111827;
+}
+
+.row-title {
+  margin-bottom: 8px;
 }
 
 .row-info p {
@@ -1365,6 +1506,11 @@ export default {
   font-weight: 600;
 }
 
+.required-mark {
+  margin-left: 2px;
+  color: #dc2626;
+}
+
 .form-item input {
   height: 46px;
   border: 1px solid #e5e7eb;
@@ -1377,6 +1523,13 @@ export default {
 
 .form-item input:focus {
   border-color: #111827;
+}
+
+.semester-hint {
+  margin: 8px 2px 0;
+  color: #9a6700;
+  font-size: 13px;
+  line-height: 1.6;
 }
 
 .modal-actions {

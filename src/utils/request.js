@@ -10,7 +10,12 @@ request.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem("token");
 
-    if (token) {
+    // 登录与获取一次性密钥时不携带历史 token。
+    const publicAuthUrls = ["/login", "/auth/secret-key"];
+
+    const shouldSkipToken = publicAuthUrls.includes(config.url);
+
+    if (token && !shouldSkipToken) {
       config.headers.Authorization = `Bearer ${token}`;
     }
 

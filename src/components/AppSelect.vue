@@ -4,6 +4,7 @@
       type="button"
       class="select-trigger"
       :class="{ open: isOpen }"
+      :disabled="disabled"
       @click.stop="toggle"
     >
       <span class="select-value" :class="{ placeholder: !modelValue }">
@@ -76,6 +77,11 @@ export default {
       type: String,
       default: "",
     },
+
+    disabled: {
+      type: Boolean,
+      default: false,
+    },
   },
 
   emits: ["update:modelValue"],
@@ -127,6 +133,10 @@ export default {
 
   methods: {
     toggle() {
+      if (this.disabled) {
+        return;
+      }
+
       this.isOpen = !this.isOpen;
     },
 
@@ -135,6 +145,10 @@ export default {
     },
 
     selectValue(value) {
+      if (this.disabled) {
+        return;
+      }
+
       this.$emit("update:modelValue", value);
       this.isOpen = false;
     },
@@ -177,6 +191,15 @@ export default {
 
 .select-trigger.open {
   border-color: #111827;
+}
+
+.select-trigger:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.select-trigger:disabled:hover {
+  border-color: #d1d5db;
 }
 
 .select-value {

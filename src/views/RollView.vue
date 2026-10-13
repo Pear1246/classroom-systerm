@@ -178,21 +178,18 @@ export default {
           this.currentDrawRecordId = result.drawRecordId;
 
           this.isRolling = false;
-
-          if (result.isMock) {
-            this.scoreTip = "当前为本地演示点名";
-          }
         }, 800);
       } catch (error) {
         if (this.timer) {
           clearInterval(this.timer);
-
           this.timer = null;
         }
 
+        this.currentStudent = null;
+        this.currentDrawRecordId = null;
         this.isRolling = false;
 
-        alert("点名失败，当前课程空间暂无学生数据");
+        alert(error?.message || "点名失败，请稍后重试");
       }
     },
 
@@ -223,13 +220,10 @@ export default {
 
         await this.studentStore.fetchRanking(this.teachingClassId);
       } catch (error) {
-        console.warn("后端评分失败，使用本地评分演示：", error);
+        console.error("评分失败：", error);
 
-        this.selectedScore = score;
-
-        this.scoreTip = "后端评分失败，已使用本地演示数据评分";
-
-        this.studentStore.updateLocalScore(this.currentStudent.id, score);
+        this.selectedScore = 0;
+        this.scoreTip = error?.message || "评分失败，请稍后重试";
       }
     },
   },

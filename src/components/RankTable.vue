@@ -7,7 +7,9 @@
     >
       <div class="rank-left">
         <div class="rank-number" :class="{ top: index === 0 }">
-          {{ index + 1 }}
+          <span class="rank-number-text">
+            {{ index + 1 }}
+          </span>
         </div>
 
         <div class="student-info">
@@ -79,6 +81,11 @@ export default {
   align-items: center;
 
   font-weight: 700;
+}
+
+.rank-number-text {
+  line-height: 1;
+  transform: translateY(-1px);
 }
 
 .rank-number.top {

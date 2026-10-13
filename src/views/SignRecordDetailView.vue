@@ -1,7 +1,10 @@
 <template>
   <div class="detail-page">
     <!-- 返回 -->
-    <button class="back-button" @click="goBack">← 返回签到记录</button>
+    <button class="back-button" @click="goBack">
+      <AppIcon name="arrow-left" />
+      <span>返回签到记录</span>
+    </button>
 
     <!-- 加载中 -->
     <div v-if="loading" class="state-card">正在加载签到详情...</div>
@@ -355,9 +358,14 @@
 </template>
 
 <script>
+import AppIcon from "../components/AppIcon.vue";
 import { getSignActivityDetail, makeupSignActivity } from "../api/teacher";
 
 export default {
+  components: {
+    AppIcon,
+  },
+
   data() {
     return {
       detail: null,
@@ -369,6 +377,7 @@ export default {
       activeStudentTab: "signed",
 
       // 分页
+      pageSize: 10,
 
       signedPage: 1,
 
@@ -593,10 +602,7 @@ export default {
         /* 重新请求最新详情 */
         await this.loadDetail();
 
-        /*
-         * 自动进入已签到第一页，
-         * 可以马上看到补签后的名单。
-         */
+        /* 自动进入已签到第一页，可以马上看到补签后的名单。 */
         this.activeStudentTab = "signed";
 
         this.signedPage = 1;
@@ -667,21 +673,32 @@ export default {
         return "--";
       }
 
-      const text = String(value);
+      const date = new Date(value);
 
-      const normalMatch = text.match(
-        /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/
-      );
-
-      if (normalMatch) {
-        const [, year, month, day, hour, minute, second] = normalMatch;
-
-        return `${year}-${month}-${day} ${hour}:${minute}${
-          second ? `:${second}` : ""
-        }`;
+      if (Number.isNaN(date.getTime())) {
+        return String(value);
       }
 
-      return text;
+      const parts = new Intl.DateTimeFormat("zh-CN", {
+        timeZone: "Asia/Shanghai",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hourCycle: "h23",
+      }).formatToParts(date);
+
+      const dateParts = {};
+
+      parts.forEach((part) => {
+        if (part.type !== "literal") {
+          dateParts[part.type] = part.value;
+        }
+      });
+
+      return `${dateParts.year}-${dateParts.month}-${dateParts.day} ${dateParts.hour}:${dateParts.minute}:${dateParts.second}`;
     },
   },
 };

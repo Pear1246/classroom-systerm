@@ -6,9 +6,19 @@ import CourseHomeView from "../views/CourseHomeView.vue";
 import SignView from "../views/SignView.vue";
 import RollView from "../views/RollView.vue";
 import PerformanceView from "../views/PerformanceView.vue";
+import CourseMaterialsView from "../views/CourseMaterialsView.vue";
+import MaterialDetailView from "../views/MaterialDetailView.vue";
+import NoteEditorView from "../views/NoteEditorView.vue";
+import NoteViewerView from "../views/NoteViewerView.vue";
 import StudentsView from "../views/StudentsView.vue";
 import SignRecordsView from "../views/SignRecordsView.vue";
 import SignRecordDetailView from "../views/SignRecordDetailView.vue";
+import CourseSummaryView from "../views/CourseSummaryView.vue";
+import QuestionBankView from "../views/QuestionBankView.vue";
+import QuestionEditorView from "../views/QuestionEditorView.vue";
+import ExerciseEditorView from "../views/ExerciseEditorView.vue";
+import ExerciseResultsView from "../views/ExerciseResultsView.vue";
+import SubmissionAnswerView from "../views/SubmissionAnswerView.vue";
 
 import AdminHomeView from "../views/AdminHomeView.vue";
 import AdminStudentAccountView from "../views/AdminStudentAccountView.vue";
@@ -66,6 +76,131 @@ const routes = [
     },
   },
 
+  // 课程知识库
+  {
+    path: "/course/:teachingClassId/materials",
+    component: CourseMaterialsView,
+    meta: {
+      requiresTeacher: true,
+    },
+  },
+
+  // 课程知识库 - 文件详情（专注模式）
+  {
+    path: "/course/:teachingClassId/materials/file/:materialId",
+    component: MaterialDetailView,
+    meta: {
+      requiresTeacher: true,
+      focusMode: true,
+    },
+  },
+
+  // 课程知识库 - 新建在线笔记
+  {
+    path: "/course/:teachingClassId/materials/note/new",
+    component: NoteEditorView,
+    meta: {
+      requiresTeacher: true,
+      noteMode: "new",
+      focusMode: true,
+    },
+  },
+
+  // 课程知识库 - 在线笔记阅读模式
+  {
+    path: "/course/:teachingClassId/materials/note/:noteId",
+    component: NoteViewerView,
+    meta: {
+      requiresTeacher: true,
+      noteMode: "view",
+      focusMode: true,
+    },
+  },
+
+  // 课程知识库 - 在线笔记编辑模式
+  {
+    path: "/course/:teachingClassId/materials/note/:noteId/edit",
+    component: NoteEditorView,
+    meta: {
+      requiresTeacher: true,
+      noteMode: "edit",
+      focusMode: true,
+    },
+  },
+
+  // 课程题库
+  {
+    path: "/course/:teachingClassId/questions",
+    component: QuestionBankView,
+    meta: {
+      requiresTeacher: true,
+    },
+  },
+
+  // 课程题库 - 新建练习（专注模式）
+  {
+    path: "/course/:teachingClassId/questions/exercises/new",
+    component: ExerciseEditorView,
+    meta: {
+      requiresTeacher: true,
+      exerciseMode: "new",
+      focusMode: true,
+    },
+  },
+
+  // 课程题库 - 编辑练习（专注模式）
+  {
+    path: "/course/:teachingClassId/questions/exercises/:exerciseId/edit",
+    component: ExerciseEditorView,
+    meta: {
+      requiresTeacher: true,
+      exerciseMode: "edit",
+      focusMode: true,
+    },
+  },
+
+  // 课程题库 - 练习结果（专注模式）
+  {
+    path: "/course/:teachingClassId/questions/exercises/:exerciseId/results",
+    component: ExerciseResultsView,
+    meta: {
+      requiresTeacher: true,
+      focusMode: true,
+    },
+  },
+
+  // 课程题库 - 学生作答详情（专注模式）
+  {
+    path: "/course/:teachingClassId/questions/exercises/:exerciseId/results/:studentId",
+    component: SubmissionAnswerView,
+    meta: {
+      requiresTeacher: true,
+      focusMode: true,
+    },
+  },
+
+  // 课程题库 - 新建题目
+  {
+    path: "/course/:teachingClassId/questions/new",
+    component: QuestionEditorView,
+    meta: {
+      requiresTeacher: true,
+      questionMode: "new",
+      focusMode: true,
+    },
+  },
+
+  // 课程题库 - 编辑题目
+  {
+    path: "/course/:teachingClassId/questions/:questionId/edit",
+    component: QuestionEditorView,
+    meta: {
+      requiresTeacher: true,
+      questionMode: "edit",
+      focusMode: true,
+    },
+  },
+
   // 学生名单
   {
     path: "/course/:teachingClassId/students",
@@ -88,6 +223,16 @@ const routes = [
   {
     path: "/course/:teachingClassId/sign-records/:activityId",
     component: SignRecordDetailView,
+    meta: {
+      requiresTeacher: true,
+      focusMode: true,
+    },
+  },
+
+  // 课程总结（仅已结课课程开放）
+  {
+    path: "/course/:teachingClassId/summary",
+    component: CourseSummaryView,
     meta: {
       requiresTeacher: true,
     },
@@ -189,8 +334,7 @@ router.beforeEach((to) => {
 
   if (
     to.path.startsWith("/course/") &&
-    (!to.params.teachingClassId ||
-      Number.isNaN(Number(to.params.teachingClassId)))
+    !String(to.params.teachingClassId || "").trim()
   ) {
     return "/courses";
   }
